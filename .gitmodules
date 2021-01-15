@@ -1,0 +1,6 @@
+[submodule "github.com/kubernetes/cri-api"]
+	path = github.com/kubernetes/cri-api
+	url = https://github.com/kubernetes/cri-api.git
+[submodule "github.com/gogo/protobuf"]
+	path = github.com/gogo/protobuf
+	url = https://github.com/gogo/protobuf.git

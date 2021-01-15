@@ -1,0 +1,17 @@
+[package]
+name = "rust-cri"
+version = "0.1.0"
+authors = ["Matt Spencer <matthew@thespencers.me.uk>"]
+edition = "2018"
+
+[[bin]] # Bin to run the CRI gRPC server
+name = "cri-server"
+path = "src/cri-server.rs"
+
+[dependencies]
+tonic = "0.3"
+prost = "0.6"
+tokio = { version = "0.2", features = ["macros"] }
+
+[build-dependencies]
+tonic-build = "0.3"
