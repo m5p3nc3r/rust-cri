@@ -9,9 +9,12 @@ name = "cri-server"
 path = "src/cri-server.rs"
 
 [dependencies]
-tonic = "0.3"
-prost = "0.6"
-tokio = { version = "0.2", features = ["macros"] }
+tonic = { version = "0.4", features = [] }
+prost = "0.7"
+tokio = { version = "1.0.2", features = ["full"] }
+async-stream = "0.3"
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+
 
 [build-dependencies]
-tonic-build = "0.3"
+tonic-build = "0.4"
