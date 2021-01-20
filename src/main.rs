@@ -1,5 +1,5 @@
 use std::path::Path;
-use tonic::transport::Server;
+use tonic::transport::{Server, Identity, ServerTlsConfig};
 use tokio::net::UnixListener;
 
 use futures::TryFutureExt;
@@ -28,6 +28,10 @@ use image_service::new_image_service_server;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "/tmp/tonic/dockershim.sock";
+    let cert = tokio::fs::read("data/server.pem").await?;
+    let key = tokio::fs::read("data/server.key").await?;
+
+    let identity = Identity::from_pem(cert, key);
 
     tokio::fs::create_dir_all(Path::new(path).parent().unwrap()).await?;
 
@@ -42,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Server::builder()
+        .tls_config(ServerTlsConfig::new().identity(identity))?
         .add_service(new_runtime_service_server())
         .add_service(new_image_service_server())
         .serve_with_incoming(incoming)
