@@ -1,3 +1,4 @@
+use std::env;
 use std::path::Path;
 use tonic::transport::{Server, Identity, ServerTlsConfig};
 use tokio::net::UnixListener;
@@ -9,25 +10,43 @@ use runtime_service::new_runtime_service_server;
 mod image_service;
 use image_service::new_image_service_server;
 
-// #[tokio::main]
-// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-// //    let addr = "[::1]:50051".parse()?;
-//     let addr = "0.0.0.0:50051".parse()?;
-//     let runtime_service = MyRuntimeService::default();
-
-//     Server::builder()
-//         .add_service(RuntimeServiceServer::new(runtime_service))
-//         .serve(addr)
-//         .await?;
-
-//     Ok(())
-// }
 
 
-#[cfg(unix)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = "/tmp/tonic/dockershim.sock";
+    let mut args: Vec<String> = env::args().collect();
+    args.remove(0);
+    let url=match args.pop() {
+        Some(val) => val,
+        None => panic!("Please specify an endpoint")
+    };
+
+    if url.starts_with("unix://") {
+        unix_socket_server(url.strip_prefix("unix://").unwrap()).await?;
+    } else if url.starts_with("tcp://") {
+        tcp_server(url.strip_prefix("tcp://").unwrap()).await?;
+    } else {
+        panic!("Endpoint not supported");
+    }
+
+    Ok(())
+}
+
+async fn tcp_server(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+//    let addr = "[::1]:50051".parse()?;
+    let address = addr.parse()?;
+ 
+    Server::builder()
+        .add_service(new_runtime_service_server())
+        .add_service(new_image_service_server())
+        .serve(address)
+        .await?;
+
+    Ok(())
+}
+
+#[cfg(unix)]
+async fn unix_socket_server(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let cert = tokio::fs::read("data/server.pem").await?;
     let key = tokio::fs::read("data/server.key").await?;
 
@@ -104,6 +123,7 @@ mod unix {
 }
 
 #[cfg(not(unix))]
-fn main() {
-    panic!("The `uds` example only works on unix systems!");
+async fn unix_socket_server(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    panic!("Unix domain sockets only available on unix systems.");
+    Ok(());
 }
