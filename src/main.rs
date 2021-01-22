@@ -1,4 +1,4 @@
-use std::env;
+use clap::{Arg, App, ArgMatches, crate_authors};
 use std::path::Path;
 use tonic::transport::{Server, Identity, ServerTlsConfig};
 use tokio::net::UnixListener;
@@ -14,41 +14,68 @@ use image_service::new_image_service_server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args: Vec<String> = env::args().collect();
-    args.remove(0);
-    let url=match args.pop() {
-        Some(val) => val,
-        None => panic!("Please specify an endpoint")
-    };
+
+    let matches = App::new("rust-cri")
+        .version("0.1")
+        .author(crate_authors!())
+        .arg(
+            Arg::new("tls")
+                .about("Enable tls")
+                .short('t')
+                .long("tls"))
+        .arg(
+            Arg::new("tls-cert")
+                .about("Specify the TLS certificate to use")
+                .long("tls-cert")
+                .default_value("data/server.pem"))
+        .arg(
+            Arg::new("tls-key")
+                .about("Specity the TLS key to use")
+                .long("tls-key")
+                .default_value("data/server.key"))
+        .arg(
+            Arg::new("url")
+                .about("The url endpoint to open, can be unix:// or tcp://")
+                .index(1)
+                .default_value("tcp://0.0.0.0:50051")
+                .validator(is_valid_url))
+        .get_matches();
+
+    let url = matches.value_of("url").unwrap();
 
     if url.starts_with("unix://") {
-        unix_socket_server(url.strip_prefix("unix://").unwrap()).await?;
+        unix_socket_server(&matches).await?;
     } else if url.starts_with("tcp://") {
-        tcp_server(url.strip_prefix("tcp://").unwrap()).await?;
-    } else {
-        panic!("Endpoint not supported");
+        tcp_server(&matches).await?;
     }
 
     Ok(())
 }
 
-async fn tcp_server(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
-//    let addr = "[::1]:50051".parse()?;
-    let address = addr.parse()?;
- 
+fn is_valid_url(url: &str) -> Result<(), String> {
+    if url.starts_with("unix://") || url.starts_with("tcp://") {
+        Ok(())
+    } else {
+        Err(String::from("only unix:// or tcp:// prefix supported"))
+    }
+}
+
+async fn tcp_server(args: &ArgMatches) -> Result<(), Box<dyn std::error::Error>> { 
+    let addr = args.value_of("url").unwrap().strip_prefix("tcp://").unwrap();
     Server::builder()
         .add_service(new_runtime_service_server())
         .add_service(new_image_service_server())
-        .serve(address)
+        .serve(addr.parse()?)
         .await?;
 
     Ok(())
 }
 
 #[cfg(unix)]
-async fn unix_socket_server(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let cert = tokio::fs::read("data/server.pem").await?;
-    let key = tokio::fs::read("data/server.key").await?;
+async fn unix_socket_server(args: &ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    let path = args.value_of("url").unwrap().strip_prefix("tcp://").unwrap();
+    let cert = tokio::fs::read(args.value_of("tls-cert").unwrap()).await?;
+    let key = tokio::fs::read(args.value_of("tls-key").unwrap()).await?;
 
     let identity = Identity::from_pem(cert, key);
 
